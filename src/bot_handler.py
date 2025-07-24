@@ -1,53 +1,45 @@
 #!/usr/bin/env python3
 """
-Python包装器 - 调用PrismarineJS的node-minecraft-protocol
+Python wrapper to call PrismarineJS's node-minecraft-protocol.
 """
 
 import subprocess
-import sys
 import os
 import json
 import time
-import threading
-
 
 class MinecraftBot:
-    def __init__(self):
-        self.server_host = "192.168.0.113"
-        self.server_port = 25565
-        self.process = None
 
     def check_dependencies(self):
-        """检查Node.js和npm依赖"""
+        """Checks for Node.js and npm dependencies."""
         try:
-            # 检查Node.js
-            result = subprocess.run(['node', '--version'], capture_output=True, text=True)
+            # Check Node.js
+            result = subprocess.run(['node', '--version'], capture_output=True, text=True, check=False)
             if result.returncode != 0:
-                print("错误: 未找到Node.js，请先安装Node.js")
+                print("Error: Node.js not found. Please install Node.js.")
                 return False
-            print(f"Node.js版本: {result.stdout.strip()}")
+            print(f"Node.js version: {result.stdout.strip()}")
 
-            # 检查npm
-            result = subprocess.run(['npm', '--version'], capture_output=True, text=True)
+            # Check npm
+            result = subprocess.run(['npm', '--version'], capture_output=True, text=True, check=False)
             if result.returncode != 0:
-                print("错误: 未找到npm")
+                print("Error: npm not found.")
                 return False
-            print(f"npm版本: {result.stdout.strip()}")
+            print(f"npm version: {result.stdout.strip()}")
 
             return True
         except Exception as e:
-            print(f"检查依赖时出错: {e}")
+            print(f"Error checking dependencies: {e}")
             return False
 
     def install_dependencies(self):
-        """安装node-minecraft-protocol依赖"""
-        print("正在安装mineflayer...")
-
+        """Installs node-minecraft-protocol dependencies."""
+        print("Installing mineflayer...")
         try:
-            # 检查package.json是否存在
+            # Check if package.json exists
             package_json_path = "/Users/lynn/Code/RIA-MCC/package.json"
             if not os.path.exists(package_json_path):
-                # 创建package.json
+                # Create package.json
                 package_data = {
                     "name": "minecraft-bot",
                     "version": "1.0.0",
@@ -57,42 +49,63 @@ class MinecraftBot:
                         "mineflayer": "^4.17.0"
                     }
                 }
-
                 with open(package_json_path, 'w') as f:
                     json.dump(package_data, f, indent=2)
-                print("已创建package.json")
+                print("Created package.json")
 
-            # 安装依赖
-            result = subprocess.run(['npm', 'install'],
-                                 cwd="/Users/lynn/Code/RIA-MCC",
-                                 capture_output=True, text=True)
-
+            # Install dependencies
+            result = subprocess.run(
+                ['npm', 'install'],
+                cwd="/Users/lynn/Code/RIA-MCC",
+                capture_output=True, text=True, check=False
+            )
             if result.returncode != 0:
-                print(f"npm install失败: {result.stderr}")
+                print(f"npm install failed: {result.stderr}")
                 return False
 
-            print("✓ 依赖安装成功")
+            print("✓ Dependencies installed successfully.")
             return True
-
         except Exception as e:
-            print(f"安装依赖时出错: {e}")
+            print(f"Error installing dependencies: {e}")
             return False
 
     def run_bot(self, username="TestPlayer"):
-        """运行机器人"""
+        """
+        Runs the bot and returns the login status without blocking.
+        The Node.js process continues to run in the background.
+        """
         try:
-            # 将输出重定向到DEVNULL以静默化
-            self.process = subprocess.Popen(
+            process = subprocess.Popen(
                 ['node', 'minecraft_bot.js', username],
                 cwd="/Users/lynn/Code/RIA-MCC",
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8'
             )
-        except Exception as e:
-            print(f"运行机器人时出错: {e}")
 
-    def stop_bot(self):
-        """停止机器人"""
-        if self.process and self.process.poll() is None:
-            self.process.terminate()
-            self.process.wait()
+            # Non-blocking read of stdout to get login status
+            start_time = time.time()
+            while time.time() - start_time < 30: # 30-second timeout for login signal
+                line = process.stdout.readline()
+                if not line:
+                    # If the process exits prematurely, check stderr
+                    if process.poll() is not None:
+                        error_output = process.stderr.read()
+                        # print(f"Bot for {username} exited early. Stderr: {error_output}")
+                        return False
+                    time.sleep(0.1) # Wait briefly for more output
+                    continue
+
+                if "LOGIN_SUCCESS" in line:
+                    return True
+                if "LOGIN_FAILURE" in line:
+                    return False
+            
+            # If timeout is reached
+            process.kill() # Kill the process if it fails to signal in time
+            return False
+
+        except Exception as e:
+            print(f"Error running bot for {username}: {e}")
+            return False

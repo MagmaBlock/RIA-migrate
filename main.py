@@ -5,51 +5,76 @@ import time
 from tqdm import tqdm
 from src.bot_handler import MinecraftBot
 
+MAX_CONCURRENT_LOGINS = 10
+MAX_RETRIES = 3
+RETRY_DELAY = 5  # seconds
+
+failed_users = []
+failed_users_lock = threading.Lock()
+
 def read_user_list(file_path="userlist.txt"):
-    """读取用户列表"""
-    with open(file_path, 'r') as f:
+    """Reads the list of users from a file."""
+    with open(file_path, 'r', encoding='utf-8') as f:
         users = [line.strip() for line in f if line.strip() and not line.startswith('#')]
     return users
 
-def worker(username, progress_bar):
-    """每个线程的工作函数"""
-    bot = MinecraftBot()
-    bot.run_bot(username)
-    time.sleep(10)
-    bot.stop_bot()
-    progress_bar.update(1)
+def worker(username, progress_bar, semaphore):
+    """Worker function for each thread, with retry logic."""
+    with semaphore:
+        bot = MinecraftBot()
+        for i in range(MAX_RETRIES):
+            success = bot.run_bot(username)
+            if success:
+                # The bot is now running in the background and will self-terminate.
+                progress_bar.update(1)
+                return
+            else:
+                # Optional: Add a small delay before retrying
+                if i < MAX_RETRIES - 1:
+                    time.sleep(RETRY_DELAY)
+        
+        # If all retries fail, record the failure
+        with failed_users_lock:
+            failed_users.append(username)
+        progress_bar.update(1) # Still update progress bar to show completion
 
 def main():
-    """主函数"""
-    print("Minecraft 批量登录机器人")
+    """Main function."""
+    print("Minecraft Bulk Login Bot")
     print("=" * 50)
 
     bot = MinecraftBot()
 
-    # 检查和安装依赖
+    # Check and install dependencies
     if not bot.check_dependencies() or not bot.install_dependencies():
         return
 
-    # 读取用户列表
+    # Read user list
     users = read_user_list()
     if not users:
-        print("用户列表为空，请检查 userlist.txt")
+        print("User list is empty. Please check userlist.txt")
         return
 
-    # 创建并启动线程
+    # Create semaphore and threads
+    semaphore = threading.Semaphore(MAX_CONCURRENT_LOGINS)
     threads = []
-    with tqdm(total=len(users), desc="登录进度") as progress_bar:
+    with tqdm(total=len(users), desc="Login Progress") as progress_bar:
         for username in users:
-            thread = threading.Thread(target=worker, args=(username, progress_bar))
+            thread = threading.Thread(target=worker, args=(username, progress_bar, semaphore))
             threads.append(thread)
             thread.start()
-            time.sleep(0.5) # 避免同时登录过多
 
-        # 等待所有线程完成
+        # Wait for all threads to complete
         for thread in threads:
             thread.join()
 
-    print("\n所有用户登录测试完成！")
+    print("\nAll user login tests completed!")
+
+    # Report failed users
+    if failed_users:
+        print("\nThe following users failed to log in after multiple retries:")
+        for user in failed_users:
+            print(f"- {user}")
 
 if __name__ == "__main__":
     main()
