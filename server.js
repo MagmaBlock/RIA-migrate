@@ -10,9 +10,10 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-const MAX_CONCURRENT_BOTS = 2;
+// 核心参数调整
+const MAX_CONCURRENT_BOTS = 1; // 并发数改为 1
 const MAX_RETRIES = 3;
-const RETRY_DELAY = 5000; // 5 seconds
+const RETRY_DELAY = 5000; // 5 秒
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -40,8 +41,8 @@ function runBot(username) {
 
         const timeout = setTimeout(() => {
             botProcess.kill();
-            resolve(false); // Timeout is a failure
-        }, 30000); // 30-second timeout for the bot process
+            resolve(false); // 超时即失败
+        }, 30000); // 30 秒机器人进程超时
 
         botProcess.stdout.on('data', (data) => {
             const output = data.toString();
@@ -56,7 +57,6 @@ function runBot(username) {
         });
 
         botProcess.stderr.on('data', () => {
-            // Any error output is considered a failure
             clearTimeout(timeout);
             botProcess.kill();
             resolve(false);
@@ -64,7 +64,7 @@ function runBot(username) {
 
         botProcess.on('close', () => {
             clearTimeout(timeout);
-            resolve(false); // If it closes without success signal, it's a failure
+            resolve(false); // 未发出成功信号就关闭，视为失败
         });
     });
 }
@@ -78,6 +78,11 @@ async function processUser(username) {
         if (success) {
             userStatus[username].status = 'success';
             updateAllClients();
+            // 10秒后更新为“已下线”状态
+            setTimeout(() => {
+                userStatus[username].status = 'offline';
+                updateAllClients();
+            }, 10000);
             return;
         }
         userStatus[username].retries = i + 1;
@@ -107,7 +112,6 @@ async function startBatch() {
         while(active_workers.length < MAX_CONCURRENT_BOTS && queue.length > 0) {
             const username = queue.shift();
             const worker = processUser(username).then(() => {
-                // When done, remove from active workers
                 const index = active_workers.indexOf(worker);
                 if(index > -1) active_workers.splice(index, 1);
             });
@@ -115,7 +119,7 @@ async function startBatch() {
         }
         await Promise.race(active_workers);
     }
-    await Promise.all(active_workers); // Wait for the last batch to finish
+    await Promise.all(active_workers); // 等待最后一批完成
 }
 
 wss.on('connection', (ws) => {
@@ -123,12 +127,12 @@ wss.on('connection', (ws) => {
     ws.on('message', (message) => {
         const parsedMessage = JSON.parse(message);
         if (parsedMessage.action === 'start') {
-            console.log('Starting batch login process...');
+            console.log('开始批量登录流程...');
             startBatch();
         }
     });
 });
 
 server.listen(3000, () => {
-    console.log('Server is running on http://localhost:3000');
+    console.log('服务器正在 http://localhost:3000 运行');
 });
