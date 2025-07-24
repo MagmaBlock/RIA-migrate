@@ -1,0 +1,9 @@
+{
+  "name": "minecraft-bot",
+  "version": "1.0.0",
+  "description": "Minecraft bot using mineflayer",
+  "main": "minecraft_bot.js",
+  "dependencies": {
+    "mineflayer": "^4.17.0"
+  }
+}

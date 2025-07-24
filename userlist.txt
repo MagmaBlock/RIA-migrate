@@ -1,0 +1,30 @@
+# 用户名列表 - 每行一个用户名
+# 以#开头的行为注释
+
+# 测试用户
+TestUser001
+TestUser002
+TestUser003
+TestUser004
+TestUser005
+TestUser006
+TestUser007
+TestUser008
+TestUser009
+TestUser010
+
+# 机器人账号
+Bot_Alpha
+Bot_Beta
+Bot_Gamma
+Bot_Delta
+Bot_Echo
+
+# 随机用户名
+Player123
+GameMaster
+ServerTester
+LoginBot
+StressTest001
+StressTest002
+StressTest003
