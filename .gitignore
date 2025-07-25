@@ -40,3 +40,6 @@ minecraft_batch_login.py
 minecraft_official.py
 minecraft_single_login.js
 .claude/
+
+# Compiled TypeScript
+dist/
