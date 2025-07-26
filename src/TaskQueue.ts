@@ -98,7 +98,7 @@ export class TaskQueue {
             return;
         }
 
-        console.log(`[TaskQueue] ==> 开始处理任务: ${task.username} (已重试 ${task.retries} 次)`);
+        console.log(`[TaskQueue] ==> 开始处理任务: ${task.username} (已重试 ${task.retries} 次)。当前队列长度: ${this.queue.length}`);
         
         try {
             const success = await this.executor(task);
